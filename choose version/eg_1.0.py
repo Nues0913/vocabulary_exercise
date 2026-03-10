@@ -1,184 +1,221 @@
 import os
+import random
+import subprocess
 import sys
 import time
-import random
+
 import openpyxl as op
 
-path = sys.path[0]
-path += '\en.xlsx'  #路徑引導
-#print(path)
-eg_data = op.load_workbook(path)
-#sheet name: 指考生字 疑難雜症 lv3~4特選 考前總匯
-sheetdict = {'1':'指考生字','2':'疑難雜症','3':'lv3~4特選','4':'考前總匯'}
 
-def sheet_1(s):
-    sheet1 = eg_data[sheetdict.get(s)]
-    voca_column = sheet1['A']
-    voca = []
-    for i in voca_column:
-        voca.append(i.value)
-    voca.remove(voca[0])
-    chinese = []
-    chinese_column = sheet1['B']
-    for i in chinese_column:
-        chinese.append(i.value)
-    chinese.remove(chinese[0])
-    return voca,chinese
+def build_sheet_map(workbook):
+    return {str(i + 1): name for i, name in enumerate(workbook.sheetnames)}
 
-os.system('cls')
+
+def clear_screen():
+    command = 'cls' if os.name == 'nt' else 'clear'
+    subprocess.run(command, shell=True, check=False)
+
 
 def intro():
     sys.stdout.write('loading')
-    sys.stdout.flush()          #清除堵塞
-    for i in range(4):
+    sys.stdout.flush()
+    for _ in range(4):
         time.sleep(1)
         sys.stdout.write('.')
         sys.stdout.flush()
     time.sleep(1)
-    os.system('cls')
+    clear_screen()
 
-for i in range(1):
-    intro()
 
-while True:
-    print('choose sheet')
-    print('1 指考生字 2 疑難雜症 3 lv3~4特選 4 考前總匯')
-    s = input()
-    if s == '1' or s == '2' or s == '3' or s == '4':
-        break
-    else:
+def load_sheet_data(workbook, sheet_name):
+    sheet = workbook[sheet_name]
+
+    voca = []
+    chinese = []
+
+    for cell in sheet['A'][1:]:
+        if cell.value is not None:
+            voca.append(str(cell.value).strip())
+
+    for cell in sheet['B'][1:]:
+        if cell.value is not None:
+            chinese.append(str(cell.value).strip())
+
+    size = min(len(voca), len(chinese))
+    return voca[:size], chinese[:size]
+
+
+def ask_sheet_key(sheet_map):
+    while True:
+        print('choose sheet')
+        menu = ' '.join([f'{key} {name}' for key, name in sheet_map.items()])
+        print(menu)
+        key = input().strip()
+        if key in sheet_map:
+            return key
         print('wrong number')
         time.sleep(1)
-        os.system('cls')
-        
-voca,chinese = sheet_1(s)
-#print(voca,chinese)
-dict_voca = {}
-for i in range(len(voca)):
-    dict_voca[voca[i]] = chinese[i]
+        clear_screen()
 
-dict_chi = {}
-for k, v in dict_voca.items():
-    dict_chi[v] = k
 
-os.system('cls')
-
-def test_ganerator():
-    def typinput():
-        a = (input('1 for voca trans chi,2 for chi trans voca\n'))
-        return a
-    def testadd():
-        print('avaliable problems :',len(voca))
-        test = []
-        t_type = typinput()
-        if t_type == '1':
-            t_number = int(input('input tests number\n'))
-            tem = [i for i in range(len(voca))]     #做不重複random
-            random.shuffle(tem)
-            for i in range(t_number):
-                test.append(voca[tem[i]])
-            return t_type,test
-        elif t_type == '2':
-            t_number = int(input('input tests number\n'))
-            tem = [i for i in range(len(voca))]
-            random.shuffle(tem)
-            for i in range(t_number):
-                test.append(chinese[tem[i]])
-            return t_type,test
-        else:
-            return 'wrong','wrong'
+def ask_test_type():
     while True:
-        ttype,test = testadd()
-        if ttype == '1' or ttype == '2':
-            break
-        else:
-            print('worng enter value,enter again')
+        test_type = input('1 for voca trans chi, 2 for chi trans voca\n').strip()
+        if test_type in ('1', '2'):
+            return test_type
+        print('wrong enter value, enter again')
+
+
+def ask_test_number(max_count):
+    while True:
+        raw = input('input tests number\n').strip()
+        try:
+            count = int(raw)
+        except ValueError:
+            print('please input a number')
+            continue
+
+        if 1 <= count <= max_count:
+            return count
+        print('number out of range (1~{})'.format(max_count))
+
+
+def build_options(correct_answer, answer_pool):
+    wrong_pool = [item for item in answer_pool if item != correct_answer]
+    wrong_count = min(3, len(wrong_pool))
+    options = random.sample(wrong_pool, wrong_count)
+    options.append(correct_answer)
+    random.shuffle(options)
+    return options
+
+
+def ask_choice(question_str, options):
+    while True:
+        ans = input('ans:\n').strip()
+        try:
+            ans_num = int(ans)
+        except ValueError:
+            print('illegal input type')
             time.sleep(1)
-            os.system('cls')
-            
-    return ttype,test
+            clear_screen()
+            print(question_str)
+            continue
 
-ttype,test = test_ganerator()
-os.system('cls')
-print('test start')
-time.sleep(2)
-os.system('cls')
+        if 1 <= ans_num <= len(options):
+            return ans_num - 1
 
-yrchoose = []
-yrtest = []
-yrcorrectans = []
-order = [i for i in range(len(test))]
-random.shuffle(order)
-if ttype == '1':
-    for i in range(len(test)):
-        example = []
-        for j in range(3):
-            def temadd():
-                tem = chinese[random.randint(0,len(chinese)-1)]
-                if tem != dict_voca.get(test[order[i]]):
-                    example.append(tem)
-                else:
-                    temadd()
-            temadd()
-        example.append(dict_voca.get(test[order[i]]))
-        random.shuffle(example)
-        while True:
-            print(i+1,':',test[order[i]])
-            for j in range(4):
-                print(j+1,example[j])
-            ans = input('ans:\n')
-            try:ans = int(ans)
-            except:pass
-            if type(ans) == int and ans <= 4 and ans >= 1:
-                break
-            else:
-                print('illegal input type')
-                time.sleep(1)
-                os.system('cls')
-        if example[ans-1] == dict_voca.get(test[order[i]]):
+        print('illegal input type')
+        time.sleep(1)
+        clear_screen()
+        print(question_str)
+
+
+def run_quiz(test_type, questions, voca_to_chi, chi_to_voca, voca, chinese):
+    wrong_choices = []
+    wrong_questions = []
+    correct_answers = []
+
+    order = list(range(len(questions)))
+    random.shuffle(order)
+
+    for index, shuffled_idx in enumerate(order, start=1):
+        question = questions[shuffled_idx]
+
+        if test_type == '1':
+            correct = voca_to_chi[question]
+            options = build_options(correct, chinese)
+        else:
+            correct = chi_to_voca[question]
+            options = build_options(correct, voca)
+
+        question_str = ""
+        question_str += f"{index}: {question}\n"
+        for i, option in enumerate(options, start=1):
+            question_str += f"{i}. {option}\n"
+        print(question_str)
+
+        selected_idx = ask_choice(question_str, options)
+        selected = options[selected_idx]
+
+        if selected == correct:
             print('PASS')
         else:
-            print('Worng answer')
-            yrchoose.append(example[ans-1])
-            yrtest.append(test[order[i]])
-            yrcorrectans.append(dict_voca.get(test[order[i]]))
-        time.sleep(1)
-        os.system('cls')
-elif ttype == '2':
-    for i in range(len(test)):
-        example = []
-        for j in range(3):
-            def temadd():
-                tem = voca[random.randint(0,len(chinese)-1)]
-                if tem != dict_chi.get(test[order[i]]):
-                    example.append(tem)
-                else:
-                    temadd()
-            temadd()
-        example.append(dict_chi.get(test[order[i]]))
-        random.shuffle(example)
-        while True:
-            print(i+1,':',test[order[i]])
-            for j in range(4):
-                print(j+1,example[j])
-            ans = input('ans:\n')
-            try:ans = int(ans)
-            except:pass
-            if type(ans) == int and ans <= 4 and ans >= 1:
-                break
-            else:
-                print('illegal input type')
-                time.sleep(1)
-                os.system('cls')
-        if example[ans-1] == dict_chi.get(test[order[i]]):
-            print('PASS')
-        else:
-            print('Worng answer')
-            yrchoose.append(example[ans-1])
-            yrtest.append(test[order[i]])
-            yrcorrectans.append(dict_chi.get(test[order[i]]))
-        time.sleep(1)
-        os.system('cls')
+            print('Wrong answer')
+            wrong_choices.append(selected)
+            wrong_questions.append(question)
+            correct_answers.append(correct)
 
-for i in range(len(yrcorrectans)):
-    print('題目 : {0} ,你的選擇 : {1} , 正確答案 : {2}'.format(yrtest[i],yrchoose[i],yrcorrectans[i]))
+        time.sleep(1)
+        clear_screen()
+
+    return wrong_questions, wrong_choices, correct_answers
+
+def statistics(wrong_questions, wrong_choices, correct_answers, total_questions):
+    print('總共錯誤題數 :', len(wrong_questions))
+    for i in range(len(wrong_questions)):
+        print(
+            '題目 : {0} ,你的選擇 : {1} , 正確答案 : {2}'.format(
+                wrong_questions[i],
+                wrong_choices[i],
+                correct_answers[i],
+            )
+        )
+    if total_questions == 0:
+        print('正確率 : 0.00%')
+        return
+
+    correct_rate = ((total_questions - len(wrong_questions)) / total_questions) * 100
+    print('正確率 : {:.2f}%'.format(correct_rate))
+
+
+def main():
+    clear_screen()
+    intro()
+
+    path = os.path.join(sys.path[0], 'en.xlsx')
+    workbook = op.load_workbook(path)
+    sheet_map = build_sheet_map(workbook)
+
+    if not sheet_map:
+        print('No worksheets found in Excel file.')
+        return
+
+    sheet_key = ask_sheet_key(sheet_map)
+    voca, chinese = load_sheet_data(workbook, sheet_map[sheet_key])
+
+    if not voca or not chinese:
+        print('No available vocabulary data.')
+        return
+
+    voca_to_chi = {voca[i]: chinese[i] for i in range(len(voca))}
+    chi_to_voca = {value: key for key, value in voca_to_chi.items()}
+
+    clear_screen()
+    print('avaliable problems :', len(voca))
+
+    test_type = ask_test_type()
+    test_number = ask_test_number(len(voca))
+
+    if test_type == '1':
+        questions = random.sample(voca, test_number)
+    else:
+        questions = random.sample(chinese, test_number)
+
+    clear_screen()
+    print('test start')
+    time.sleep(2)
+    clear_screen()
+
+    wrong_questions, wrong_choices, correct_answers = run_quiz(
+        test_type,
+        questions,
+        voca_to_chi,
+        chi_to_voca,
+        voca,
+        chinese,
+    )
+
+    statistics(wrong_questions, wrong_choices, correct_answers, len(questions))
+
+if __name__ == '__main__':
+    main()
